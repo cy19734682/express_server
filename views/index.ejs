@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title><%= title %></title>
+    <link rel='stylesheet' href='./layui/css/layui.css' media="all"/>
+</head>
+<body>
+<div style="padding: 20px">
+    <div class="layui-btn-container layui-form" style="text-align: right">
+        <div style="float:left">
+            <input type="checkbox" name="onOff" id="switchBtn" lay-filter="switchBtn" lay-skin="switch" lay-text="local|mysql">
+        </div>
+        <button class="layui-btn layui-btn-sm" id="addBtn">添加</button>
+    </div>
+    <table id="tableList" lay-filter="tableTest"></table>
+    <script type="text/html" id="barDemo">
+        <a class="layui-btn layui-btn-xs" lay-event="detail">查看</a>
+        <a class="layui-btn layui-btn-xs" lay-event="edit">编辑</a>
+        <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+    </script>
+    <form class="layui-form" id="formData" lay-filter="formTest" style="display: none;padding: 15px">
+        <!-- 提示：如果你不想用form，你可以换成div等任何一个普通元素 -->
+        <div class="layui-form-item">
+            <label class="layui-form-label">标题</label>
+            <div class="layui-input-block">
+                <input
+                        type="text" name="title" placeholder="请输入" autocomplete="off" class="layui-input"
+                        lay-verify="required"
+                >
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">作者</label>
+            <div class="layui-input-block">
+                <input
+                        type="text" name="author" placeholder="请输入" autocomplete="off" class="layui-input"
+                        lay-verify="required"
+                >
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">封面</label>
+            <div class="layui-input-block">
+                <input
+                        type="text" name="pic" placeholder="请输入" autocomplete="off" class="layui-input"
+                        lay-verify="required"
+                >
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">简介</label>
+            <div class="layui-input-block">
+                <input
+                        type="text" name="content" placeholder="请输入" autocomplete="off" class="layui-input"
+                        lay-verify="required"
+                >
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">标签</label>
+            <div class="layui-input-block">
+                <input
+                        type="text" name="tag" placeholder="请输入" autocomplete="off" class="layui-input"
+                        lay-verify="required"
+                >
+            </div>
+        </div>
+    </form>
+</div>
+</body>
+<script src="./layui/layui.js"></script>
+<script>
+  layui.use([
+    'element',
+    'layer'
+  ], function () {
+    var element = layui.element, layer = layui.layer, $ = layui.jquery, form = layui.form, table = layui.table;
+    var urlType = sessionStorage.getItem("urlType") || "local"
+    urlType === "local"?$("#switchBtn").attr("checked","checked"):$("#switchBtn").removeAttr("checked")
+    form.render('checkbox');
+    //渲染表格
+    table.render({
+      elem: '#tableList',
+      id: 'tableTest',
+      url: '/' + urlType + '/queryByPage' //数据接口
+      ,
+      request: {
+        pageName: 'current' //页码的参数名称，默认：page
+        ,
+        limitName: 'size' //每页数据量的参数名，默认：limit
+      },
+      page: true //开启分页
+      ,
+      cols: [
+        [ //表头
+          {
+            field: 'id',
+            title: 'ID',
+            width: 80,
+            fixed: 'left'
+          },
+          {
+            field: 'title',
+            title: '标题'
+          },
+          {
+            field: 'author',
+            title: '作者'
+          },
+          {
+            field: 'pic',
+            title: '封面'
+          },
+          {
+            field: 'content',
+            title: '简介'
+          },
+          {
+            field: 'tag',
+            title: '标签'
+          },
+          {
+            fixed: 'right',
+            width: 200,
+            align: 'center',
+            toolbar: '#barDemo'
+          } //这里的toolbar值是模板元素的选择器
+        ]
+      ],
+      parseData: function (res) { //res 即为原始返回的数据
+        return {
+          "code": res.code, //解析接口状态
+          "msg": res.msg, //解析提示文本
+          "count": res.total, //解析数据长度
+          "data": res.data //解析数据列表
+        };
+      }
+    });
+    //工具条事件
+    table.on('tool(tableTest)', function (obj) { //注：tool 是工具条事件名，test 是 table 原始容器的属性 lay-filter="对应的值"
+      var data = obj.data; //获得当前行数据
+      var layEvent = obj.event; //获得 lay-event 对应的值（也可以是表头的 event 参数对应的值）
+      if (layEvent === 'detail') { //查看
+        $.ajax({
+          url: "/" + urlType + "/query/" + data.id,
+          type: "get",
+          success: function (result) {
+            if (result && result.code === 0) {
+              if (result.data) {
+                form.val("formTest", result.data[0]);
+              }
+              disabledForm(true)
+              layer.open({
+                title: "查看",
+                type: 1,
+                area: '600px',
+                content: $("#formData")
+              });
+            }
+            else {
+              layer.msg(result.msg, {icon: 2})
+            }
+          }
+        });
+      }
+      else if (layEvent === 'del') { //删除
+        layer.confirm('是否确认删除？', function (index) {
+          $.ajax({
+            url: "/" + urlType + "/delete/" + data.id,
+            type: "delete",
+            success: function (result) {
+              if (result && result.code === 0) {
+                layer.close(index)
+                reloadTable()
+                layer.msg("删除成功！", {icon: 1})
+              }
+              else {
+                layer.msg(result.msg, {icon: 2})
+              }
+            }
+          });
+        });
+      }
+      else if (layEvent === 'edit') { //编辑
+        form.val("formTest", data);
+        disabledForm(false)
+        layer.open({
+          title: "编辑",
+          type: 1,
+          area: '600px',
+          btn: [
+            '提交',
+            '关闭'
+          ],
+          content: $("#formData"),
+          success: function (layero) {
+            $(':focus').blur();
+            // 添加form标识
+            layero.addClass('layui-form');
+            // 将保存按钮改变成提交按钮
+            layero.find('.layui-layer-btn0').attr({
+              'lay-filter': 'formDemo',
+              'lay-submit': ''
+            });
+            form.render();
+          },
+          yes: function (index, layero) {
+            form.on('submit(formDemo)', function (reData) {
+              //表单数据formData
+              var paramData = reData.field;
+              $.ajax({
+                url: "/" + urlType + "/update/" + data.id,
+                type: "put",
+                data: paramData,
+                success: function (result) {
+                  if (result && result.code === 0) {
+                    layer.close(index)
+                    reloadTable()
+                    layer.msg("更新成功！", {icon: 1})
+                  }
+                  else {
+                    layer.msg(result.msg, {icon: 2})
+                  }
+                }
+              });
+            })
+          }
+        });
+      }
+    });
+
+    $('#addBtn').on('click', function () {
+      $("#formData")[0].reset();
+      disabledForm(false)
+      layer.open({
+        title: "新增",
+        type: 1,
+        area: '600px',
+        btn: [
+          '提交',
+          '关闭'
+        ],
+        content: $("#formData"),
+        success: function (layero) {
+          $(':focus').blur();
+          // 添加form标识
+          layero.addClass('layui-form');
+          // 将保存按钮改变成提交按钮
+          layero.find('.layui-layer-btn0').attr({
+            'lay-filter': 'formDemo',
+            'lay-submit': ''
+          });
+          form.render();
+        },
+        yes: function (index, layero) {
+          form.on('submit(formDemo)', function (data) {
+            //表单数据formData
+            var paramData = data.field;
+            $.ajax({
+              url: "/" + urlType + "/add",
+              type: "post",
+              data: paramData,
+              success: function (result) {
+                if (result && result.code === 0) {
+                  layer.close(index)
+                  reloadTable()
+                  layer.msg("新增成功！", {icon: 1})
+                }
+                else {
+                  layer.msg(result.msg, {icon: 2})
+                }
+              }
+            });
+          })
+        }
+      });
+      return false;
+    });
+
+    var reloadTable = function () {//重新加载列表
+      table.reload('tableTest', {
+        page: {
+          curr: 1 //重新从第 1 页开始
+        }
+      });
+    }
+    var disabledForm = function (isDisabled) {//是否禁用
+      $("#formData input").each(function (index, item) {
+        $(item).attr("disabled", isDisabled);
+      })
+    }
+    form.on('switch(switchBtn)', function (data) {//switch切换
+      sessionStorage.setItem("urlType", urlType === "local" ? "mysql" : "local")
+      history.go(0)
+    })
+  });
+</script>
+</html>
